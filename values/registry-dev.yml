@@ -5,6 +5,9 @@ persistence:
 hostNetwork:
   enabled: true
 
+ingress:
+  enabled: true
+
 persistentVolume:
   enabled: true
   nodeName: sandbox-server
