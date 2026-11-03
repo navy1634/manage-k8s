@@ -38,7 +38,7 @@ Docker Engine から接続する端末では、mkcert の CA `/mnt/c/Users/kny16
 登録後、次のようにログインして push する。
 
 ```sh
-docker login registry.local/<repository>:<tag>
+docker login registry.local
 docker push registry.local/<repository>:<tag>
 ```
 
