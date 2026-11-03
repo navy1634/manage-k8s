@@ -41,21 +41,3 @@ Docker Engine から接続する端末では、mkcert の CA `/mnt/c/Users/kny16
 docker login registry.local
 docker push registry.local/<repository>:<tag>
 ```
-
-## Kubernetes node の containerd
-
-dev node では `containerd/dev/certs.d/registry.local:5000/hosts.toml` を `/etc/containerd/certs.d/registry.local:5000/hosts.toml` として配置する。この設定で `registry.local:5000` の image 参照を sandbox-server の `192.168.0.100:5000` へ送る。
-
-containerd の CRI plugin が registry host 設定を読むよう、`/etc/containerd/config.toml` の registry 設定に次を指定する。
-
-```toml
-[plugins."io.containerd.cri.v1.images".registry]
-  config_path = "/etc/containerd/certs.d"
-```
-
-`config.toml` を更新した後は containerd を再起動し、有効な `config_path` を確認する。
-
-```sh
-sudo systemctl restart containerd
-sudo containerd config dump | grep -A1 -B1 'io.containerd.cri.v1.images.*registry'
-```
