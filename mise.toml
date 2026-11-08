@@ -1,6 +1,7 @@
 [tools]
-helm = "latest"
-helmfile = "latest"
+helm = "4.3.1"
+helmfile = "1.8.3"
+kubectl = "1.37.2"
 
 [env]
 _.file = ".env"
