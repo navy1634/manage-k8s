@@ -1,0 +1,30 @@
+global:
+  domain: argocd.navy1634.com
+
+configs:
+  cm:
+    admin.enabled: false
+    url: https://argocd.navy1634.com
+    oidc.config: |
+      name: Google
+      issuer: https://accounts.google.com
+      clientID: $argocd-google-oauth:GOOGLE_CLIENT_ID
+      clientSecret: $argocd-google-oauth:GOOGLE_CLIENT_SECRET
+      requestedScopes: [openid, profile, email]
+      enablePKCEAuthentication: true
+  params:
+    server.insecure: true
+  rbac:
+    policy.default: role:authenticated
+    scopes: '[email]'
+dex:
+  enabled: false
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: cilium
+    extraTls:
+      - hosts:
+          - argocd.navy1634.com
+        secretName: argocd-tls
