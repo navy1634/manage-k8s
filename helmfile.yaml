@@ -3,6 +3,8 @@ repositories:
     url: https://argoproj.github.io/argo-helm
   - name: cilium
     url: https://helm.cilium.io/
+  - name: prometheus-community
+    url: https://prometheus-community.github.io/helm-charts
 
 helmDefaults:
   wait: true
@@ -25,6 +27,17 @@ releases:
     version: 1.19.6
     values:
       - values/cilium.yml
+
+  - name: monitoring
+    namespace: monitoring
+    chart: prometheus-community/kube-prometheus-stack
+    version: 93.2.2
+    values:
+      - values/alertmanager.yml
+      - values/kube-state-metrics.yml
+      - values/node-exporter.yml
+      - values/grafana.yml
+      - values/prometheus.yml
 
   - name: registry
     namespace: registry

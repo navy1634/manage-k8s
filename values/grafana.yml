@@ -1,0 +1,27 @@
+grafana:
+  enabled: true
+  grafana.ini:
+    server:
+      domain: grafana.navy1634.com
+      root_url: https://grafana.navy1634.com/
+      enforce_domain: true
+  ingress:
+    enabled: true
+    ingressClassName: cilium
+    hosts:
+      - grafana.navy1634.com
+    path: /
+    pathType: Prefix
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.navy1634.com
+  rbac:
+    namespaced: true
+    namespaces:
+      - monitoring
+  sidecar:
+    dashboards:
+      searchNamespace: monitoring
+    datasources:
+      searchNamespace: monitoring
