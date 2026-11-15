@@ -1,10 +1,47 @@
 grafana:
   enabled: true
+  persistence:
+    enabled: true
+    storageClassName: ""
+    volumeName: monitoring-grafana
+    accessModes:
+      - ReadWriteOnce
+    size: 10Gi
+  initChownData:
+    enabled: true
+  envValueFrom:
+    GF_AUTH_GOOGLE_CLIENT_ID:
+      secretKeyRef:
+        name: grafana-google-oauth
+        key: GOOGLE_CLIENT_ID
+    GF_AUTH_GOOGLE_CLIENT_SECRET:
+      secretKeyRef:
+        name: grafana-google-oauth
+        key: GOOGLE_CLIENT_SECRET
+    GF_AUTH_GOOGLE_ROLE_ATTRIBUTE_PATH:
+      secretKeyRef:
+        name: grafana-google-oauth
+        key: GOOGLE_ROLE_ATTRIBUTE_PATH
   grafana.ini:
+    auth:
+      disable_login_form: true
+    auth.basic:
+      enabled: false
+    auth.google:
+      enabled: true
+      allow_sign_up: true
+      allow_assign_grafana_admin: true
+      auto_login: false
+      skip_org_role_sync: false
+      use_pkce: true
+    security:
+      disable_initial_admin_creation: true
     server:
       domain: grafana.navy1634.com
       root_url: https://grafana.navy1634.com/
       enforce_domain: true
+    users:
+      auto_assign_org_role: Viewer
   ingress:
     enabled: true
     ingressClassName: cilium
@@ -23,5 +60,39 @@ grafana:
   sidecar:
     dashboards:
       searchNamespace: monitoring
+      skipReload: true
+      provider:
+        updateIntervalSeconds: 30
     datasources:
       searchNamespace: monitoring
+      skipReload: true
+      initDatasources: true
+      watchMethod: LIST
+
+extraManifests:
+  grafana-storage:
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: monitoring-grafana
+      labels:
+        app.kubernetes.io/component: grafana-storage
+    spec:
+      capacity:
+        storage: 10Gi
+      volumeMode: Filesystem
+      accessModes:
+        - ReadWriteOnce
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: ""
+      hostPath:
+        path: /var/lib/grafana
+        type: DirectoryOrCreate
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - sandbox-server

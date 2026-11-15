@@ -15,7 +15,8 @@ prometheus:
               storage: 10Gi
 
 extraManifests:
-  - apiVersion: v1
+  prometheus-storage:
+    apiVersion: v1
     kind: PersistentVolume
     metadata:
       name: monitoring-prometheus

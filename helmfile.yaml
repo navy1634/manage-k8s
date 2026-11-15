@@ -33,9 +33,7 @@ releases:
     chart: prometheus-community/kube-prometheus-stack
     version: 93.2.2
     values:
-      - values/alertmanager.yml
-      - values/kube-state-metrics.yml
-      - values/node-exporter.yml
+      - values/monitoring.yml
       - values/grafana.yml
       - values/prometheus.yml
 
