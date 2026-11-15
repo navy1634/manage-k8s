@@ -40,9 +40,23 @@ kubectl -n argocd create secret tls argocd-tls --cert=/path/to/cert.pem --key=/p
 対象環境に合わせて `ENVIRONMENT` を指定し、Argo CD の release を適用する。
 
 ```sh
-ENVIRONMENT=dev helmfile --selector name=argocd sync
+ENVIRONMENT=prd helmfile --selector name=argocd sync
 kubectl -n argocd get pods
 ```
+
+### Helmfile の変更を prd へ自動同期
+
+Argo CD の Pod が起動し、この設定を含む変更が `main` にマージされた後、Application を一度だけ登録する。
+
+```sh
+kubectl apply -f applications/prd/helmfile.yaml
+```
+
+`helmfile-prd` は `main` のリポジトリルートを Helmfile CMP で描画し、`ENVIRONMENT=prd` の全 release を Argo CD と同じクラスタへ自動同期して、手動変更を Git の状態へ戻す。prd の永続データを保護するため prune は無効にしている。Helmfile の定義から削除したリソースは自動削除されないため、削除が必要な場合はクラスタ上で別途行う。Registry の PVC には default StorageClass が必要で、ない場合は `values/registry-prd.yml` に `persistence.storageClassName` を指定する。prd の Registry は Ingress を作らず、クラスタ内部の ClusterIP で公開する。詳細は [Registry の永続化](charts/registry/README.md#永続化) を参照する。
+
+Application の同期が始まった後は同じリソースを二重管理しないよう、`helmfile sync` を実行せず Git の変更を Argo CD に反映する。
+
+別環境を追加するときは `applications/<環境名>/` に Application を作成し、`helmfile-<環境名>` と命名する。CMP の `ENVIRONMENT` と `destination.server` を対象環境に合わせて指定する。
 
 `https://argocd.navy1634.com` に接続する。接続 URL を変更する場合は、Google Cloud のリダイレクト URI と証明書も更新する。
 

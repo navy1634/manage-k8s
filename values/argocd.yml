@@ -12,6 +12,16 @@ configs:
       clientSecret: $argocd-google-oauth:GOOGLE_CLIENT_SECRET
       requestedScopes: [openid, profile, email]
       enablePKCEAuthentication: true
+  cmp:
+    create: true
+    plugins:
+      helmfile:
+        generate:
+          command: [sh, -c]
+          args:
+            - >-
+              exec env ENVIRONMENT="${ARGOCD_ENV_ENVIRONMENT}"
+              helmfile template --quiet --no-color --template-args=--include-crds
   params:
     server.insecure: true
   rbac:
@@ -28,3 +38,44 @@ server:
       - hosts:
           - argocd.navy1634.com
         secretName: argocd-tls
+
+repoServer:
+  extraContainers:
+    - name: cmp-helmfile
+      command:
+        - /var/run/argocd/argocd-cmp-server
+      image: ghcr.io/helmfile/helmfile:v1.8.3
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      env:
+        - name: HOME
+          value: /tmp
+        - name: HELM_CACHE_HOME
+          value: /tmp/.cache/helm
+        - name: HELM_CONFIG_HOME
+          value: /tmp/.config/helm
+        - name: HELM_DATA_HOME
+          value: /tmp/.local/share/helm
+      volumeMounts:
+        - name: var-files
+          mountPath: /var/run/argocd
+        - name: plugins
+          mountPath: /home/argocd/cmp-server/plugins
+        - name: argocd-cmp-cm
+          mountPath: /home/argocd/cmp-server/config/plugin.yaml
+          subPath: helmfile.yaml
+          readOnly: true
+        - name: cmp-tmp
+          mountPath: /tmp
+  volumes:
+    - name: argocd-cmp-cm
+      configMap:
+        name: argocd-cmp-cm
+    - name: cmp-tmp
+      emptyDir: {}
