@@ -5,6 +5,8 @@ repositories:
     url: https://helm.cilium.io/
   - name: prometheus-community
     url: https://prometheus-community.github.io/helm-charts
+  - name: tailscale
+    url: https://pkgs.tailscale.com/helmcharts
 
 helmDefaults:
   wait: true
@@ -48,3 +50,23 @@ releases:
     chart: ./charts/cilium-lb
     needs:
       - kube-system/cilium
+
+  - name: tailscale-operator
+    namespace: tailscale
+    createNamespace: true
+    chart: tailscale/tailscale-operator
+    version: 1.104.7
+    values:
+      - values/tailscale-operator.yml
+
+  - name: tailscale-connector
+    namespace: tailscale
+    chart: ./charts/tailscale-connector
+    needs:
+      - tailscale/tailscale-operator
+
+  - name: tailscale-dns
+    namespace: tailscale
+    chart: ./charts/tailscale-dns
+    needs:
+      - tailscale/tailscale-connector

@@ -1,0 +1,13 @@
+apiVersion: tailscale.com/v1alpha1
+kind: Connector
+metadata:
+  name: {{ .Values.connector.name | quote }}
+spec:
+  tags: {{ .Values.connector.tags | toJson }}
+  hostname: {{ .Values.connector.hostname | quote }}
+  replicas: {{ .Values.connector.replicas }}
+  subnetRouter:
+    advertiseRoutes:
+{{- range .Values.connector.subnetRouter.advertiseRoutes }}
+      - {{ . | quote }}
+{{- end }}

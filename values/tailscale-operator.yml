@@ -1,0 +1,9 @@
+operatorConfig:
+  defaultTags:
+    - tag:k8s-operator
+
+ingressClass:
+  enabled: false
+
+apiServerProxyConfig:
+  mode: "false"
