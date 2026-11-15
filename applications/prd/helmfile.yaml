@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: helmfile-prd
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/navy1634/manage-k8s.git
+    targetRevision: main
+    path: .
+    plugin:
+      name: helmfile
+      env:
+        - name: ENVIRONMENT
+          value: prd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
