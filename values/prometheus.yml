@@ -1,0 +1,42 @@
+prometheus:
+  enabled: true
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: ""
+          selector:
+            matchLabels:
+              app.kubernetes.io/component: prometheus-storage
+          resources:
+            requests:
+              storage: 10Gi
+
+extraManifests:
+  prometheus-storage:
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: monitoring-prometheus
+      labels:
+        app.kubernetes.io/component: prometheus-storage
+    spec:
+      capacity:
+        storage: 10Gi
+      volumeMode: Filesystem
+      accessModes:
+        - ReadWriteOnce
+      persistentVolumeReclaimPolicy: Retain
+      storageClassName: ""
+      local:
+        path: /var/lib/monitoring/prometheus
+      nodeAffinity:
+        required:
+          nodeSelectorTerms:
+            - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values:
+                    - sandbox-server

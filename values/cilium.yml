@@ -1,6 +1,13 @@
 operator:
   replicas: 1
   rollOutPods: true
+  prometheus:
+    metricsService: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      labels:
+        release: monitoring
 
 rollOutCiliumPods: true
 
@@ -22,6 +29,23 @@ cni:
   exclusive: true
 
 devices: eno1
+
+prometheus:
+  enabled: true
+  metricsService: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    labels:
+      release: monitoring
+
+envoy:
+  prometheus:
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      labels:
+        release: monitoring
 
 kubeProxyReplacement: true
 k8sServiceHost: 192.168.0.100
