@@ -1,0 +1,5 @@
+apiVersion: v2
+name: tailscale-dns
+description: Tailnet-only DNS records for Kubernetes ingress
+type: application
+version: 0.1.0

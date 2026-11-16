@@ -1,96 +1,156 @@
-# k8s manage
+# manage_k8s
 
-Kubernetes クラスタの Cilium、コンテナレジストリ、Argo CD、Prometheus/Grafana を Helmfile で管理する。
+Kubernetes クラスタの基盤コンポーネントを Helmfile と Terraform で管理するリポジトリです。
+Helmfile はクラスタ内の release を管理し、Terraform は Grafana dashboard を管理します。
 
-## 監視
+## 管理対象と設定場所
 
-Grafana の Kubernetes ダッシュボードで、Namespace ごとの Pod の CPU・メモリを確認できる。
-接続先は `https://grafana.navy1634.com`。
-Prometheus はデータを10日間保持し、`sandbox-server` 上の10GiローカルPVに保存する。
-ローカルPVはノードに紐づくため、ノードやディスクの故障時にはデータを利用できない。
-Pod の CPU・メモリ指標を取得するには、Prometheus から各ノードの kubelet へ TCP 10250 番で接続できる必要がある。
+| 領域 | 管理内容と設定場所 |
+| --- | --- |
+| ネットワーク | Cilium は `values/cilium.yml`、LoadBalancer は `charts/cilium-lb/` |
+| GitOps | Argo CD は `values/argocd.yml`、prd Application は `applications/prd/helmfile.yaml` |
+| 監視 | Prometheus/Grafana は `values/monitoring.yml`、`values/grafana.yml`、`values/prometheus.yml` |
+| Grafana ダッシュボード | Terraform root は `terraform/grafana/env/prd/` |
+| Registry chart | `charts/registry/` |
+| Registry dev values | `values/registry-dev.yml` |
+| Registry prd values | `values/registry-prd.yml` |
+| Tailscale Operator | `values/tailscale-operator.yml` |
+| Tailscale Connector / DNS resolver | `charts/tailscale-connector/`、`charts/tailscale-dns/` |
 
-初回適用時は `monitoring` Namespace と `grafana-tls` Secret を作成する。
-証明書には `grafana.navy1634.com` を含める。
+Registry の永続化と HTTPS は [Registry README](charts/registry/README.md) を参照してください。
+このリポジトリが管理する Tailscale の範囲は Kubernetes 側のリソースです。
+Tailnet 全体の policy や DNS 設定はここでは管理しません。
+
+## 環境と Kubernetes context
+
+Helmfile は `dev` または `prd` を環境名として受け取ります。
+環境名は `values/registry-<環境名>.yml` の選択に使います。
+環境名を指定しても Kubernetes context は切り替わりません。
+適用先は `kubectl` の現在の context で決まります。
+
+Argo CD の prd Application は [applications/prd/helmfile.yaml](applications/prd/helmfile.yaml) にあります。
+Grafana dashboard 用の Terraform root は `terraform/grafana/env/prd/` にあります。
+Terraform の version は [terraform/mise.toml](terraform/mise.toml) で管理します。
+
+## 描画と適用
+
+ルートの [mise.toml](mise.toml) は Helm、Helmfile、kubectl の version を固定しています。
+初回は次のコマンドで必要なツールを用意し、適用先を確認してください。
 
 ```sh
-# sandbox-server上でlocal PVのパスを作成し、Prometheus (UID 1000/GID 2000) に書込権限を与える
-sudo install -d -o 1000 -g 2000 -m 0770 /var/lib/monitoring/prometheus
-
-# Kubernetes 管理端末で実行
-kubectl create namespace monitoring
-kubectl -n monitoring create secret tls grafana-tls --cert=/path/to/cert.pem --key=/path/to/key.pem
-ENVIRONMENT=dev helmfile --selector name=monitoring sync
+mise install
+kubectl config current-context
 ```
 
-## Argo CD
+変更を確認するときは Helmfile の manifest を描画します。
+クラスタへ反映するときは、描画内容と context を確認してから apply してください。
 
-Argo CD の設定は [values/argocd.yml](values/argocd.yml) で管理する。
-適用前に `kubectl config current-context` で対象クラスタを確認する。
+```sh
+mise run render prd
+mise run apply prd
+```
 
-### Google ログインの準備
+`mise run apply <環境名>` はルート Helmfile の全 release を同期します。
+環境名に `dev` を指定すると、Registry の dev 用 values を使います。
+適用先は Kubernetes context で決まり、環境名では切り替わりません。
+適用前に `kubectl config current-context` で必ず確認してください。
 
-Google Cloud で OAuth 同意画面と Web アプリケーション用 OAuth クライアントを作成する。
-承認済みリダイレクト URI には `https://argocd.navy1634.com/auth/callback` を登録する。
-テスト状態の外部アプリでは、ログインする Google アカウントをテストユーザーに追加する。
+## 初回導入の準備
 
-クライアント ID とクライアントシークレットを、次の形式で Git 管理外のファイルに保存する。`kubectl` の `--from-env-file` では値を引用符で囲まない。
+初回適用の前に、各 release が参照する Namespace と Secret を用意してください。
+credential の値と証明書の秘密鍵は Git に追加しないでください。
+Tailscale Operator には `tailscale` namespace の `operator-oauth` Secret が必要です。
+
+### 監視
+
+Prometheus はデータを10日間保持し、`sandbox-server` に接続した local PV を使います。
+ノードまたはディスクが故障すると、保存データを利用できなくなります。
+新しいクラスタでは、まず `sandbox-server` 上にデータ用ディレクトリを作成します。
+
+```sh
+sudo install -d -o 1000 -g 2000 -m 0770 /var/lib/prometheus
+```
+
+Grafana は Google OAuth でログインします。
+Google Cloud で Web application 用 OAuth クライアントを作成してください。
+承認済み JavaScript 生成元は `https://grafana.navy1634.com` にします。
+承認済み redirect URI は `https://grafana.navy1634.com/login/google` にします。
+OAuth 同意画面がテスト状態の場合は、ログインする Google アカウントをテストユーザーに追加します。
+次の3つのキーを含む `grafana-google-oauth` Secret を `monitoring` namespace に作成します。
+`GOOGLE_ROLE_ATTRIBUTE_PATH` には、Grafana に設定する role mapping expression を指定します。
+ファイルは `/tmp/grafana-google.env` に保存する例です。
+`kubectl --from-env-file` では値を引用符で囲みません。
 
 ```dotenv
-GOOGLE_CLIENT_ID=取得したクライアントID
-GOOGLE_CLIENT_SECRET=取得したクライアントシークレット
+GOOGLE_CLIENT_ID=<client-id>
+GOOGLE_CLIENT_SECRET=<client-secret>
+GOOGLE_ROLE_ATTRIBUTE_PATH=<role-mapping-expression>
 ```
 
-次の例では、ファイルを `/tmp/argocd-google.env` に保存している。ファイルと Kubernetes Secret は機密情報として扱う。
+Grafana 証明書には `grafana.navy1634.com` を含めてください。
+Kubernetes 管理端末で Namespace、OAuth Secret、TLS Secret を作成します。
+
+```sh
+kubectl create namespace monitoring
+kubectl -n monitoring create secret generic grafana-google-oauth \
+  --from-env-file=/tmp/grafana-google.env
+kubectl -n monitoring create secret tls grafana-tls \
+  --cert=/path/to/cert.pem \
+  --key=/path/to/key.pem
+```
+
+`values/grafana.yml` は Secret の3キーを必須参照します。
+必須 Secret またはいずれかのキーがないと、Kubernetes は Grafana のコンテナを起動しません。
+Helmfile は最大600秒待ち、`atomic: true` により失敗した初回 install を削除し、upgrade を前の状態へ戻します。
+
+### Argo CD
+
+Google Cloud で Web アプリケーション用 OAuth client を作成します。
+承認済み redirect URI は `https://argocd.navy1634.com/auth/callback` です。
+OAuth 同意画面がテスト状態の場合は、ログインする Google アカウントをテストユーザーに追加します。
+OAuth client の ID と secret は Git 管理外のファイルに保存してください。
+`kubectl --from-env-file` では値を引用符で囲みません。
+
+```dotenv
+GOOGLE_CLIENT_ID=<client-id>
+GOOGLE_CLIENT_SECRET=<client-secret>
+```
+
+次の例では、そのファイルを `/tmp/argocd-google.env` に保存しています。
+Argo CD の証明書には `argocd.navy1634.com` を含めてください。
 
 ```sh
 kubectl create namespace argocd
-kubectl -n argocd create secret generic argocd-google-oauth --from-env-file=/tmp/argocd-google.env
-kubectl -n argocd label secret argocd-google-oauth app.kubernetes.io/part-of=argocd
+kubectl -n argocd create secret generic argocd-google-oauth \
+  --from-env-file=/tmp/argocd-google.env
+kubectl -n argocd label secret argocd-google-oauth \
+  app.kubernetes.io/part-of=argocd
+kubectl -n argocd create secret tls argocd-tls \
+  --cert=/path/to/cert.pem \
+  --key=/path/to/key.pem
 ```
 
-### HTTPS の準備
-
-`argocd.navy1634.com` の証明書と秘密鍵を用意し、次のコマンドで `argocd-tls` Secret に登録する。パスは用意したファイルに合わせる。
-
-```sh
-kubectl -n argocd create secret tls argocd-tls --cert=/path/to/cert.pem --key=/path/to/key.pem
-```
-
-接続する端末で `argocd.navy1634.com` が Cilium Ingress の IP を解決するようにする。
-Ingress の IP は `kubectl -n kube-system get service cilium-ingress` で確認できる。
-
-### インストールと接続
-
-対象環境に合わせて `ENVIRONMENT` を指定し、Argo CD の release を適用する。
-
-```sh
-ENVIRONMENT=prd helmfile --selector name=argocd sync
-kubectl -n argocd get pods
-```
-
-### Helmfile の変更を prd へ自動同期
-
-Argo CD の Pod が起動し、この設定を含む変更が `main` にマージされた後、Application を一度だけ登録する。
-
-```sh
-kubectl apply -f applications/prd/helmfile.yaml
-```
-
-`helmfile-prd` は `main` のリポジトリルートを Helmfile CMP で描画し、`ENVIRONMENT=prd` の全 release を Argo CD と同じクラスタへ自動同期して、手動変更を Git の状態へ戻す。prd の永続データを保護するため prune は無効にしている。Helmfile の定義から削除したリソースは自動削除されないため、削除が必要な場合はクラスタ上で別途行う。Registry の PVC には default StorageClass が必要で、ない場合は `values/registry-prd.yml` に `persistence.storageClassName` を指定する。prd の Registry は Ingress を作らず、クラスタ内部の ClusterIP で公開する。詳細は [Registry の永続化](charts/registry/README.md#永続化) を参照する。
-
-Application の同期が始まった後は同じリソースを二重管理しないよう、`helmfile sync` を実行せず Git の変更を Argo CD に反映する。
-
-別環境を追加するときは `applications/<環境名>/` に Application を作成し、`helmfile-<環境名>` と命名する。CMP の `ENVIRONMENT` と `destination.server` を対象環境に合わせて指定する。
-
-`https://argocd.navy1634.com` に接続する。接続 URL を変更する場合は、Google Cloud のリダイレクト URI と証明書も更新する。
-
-Google アカウントの管理者権限は `argocd-rbac-cm` ConfigMap の `policy.admin.csv` で管理する。
-新規インストール後は次のコマンドで ConfigMap を開く。
-`data` に `policy.admin.csv` を追加し、管理者にするアカウントごとに `g, メールアドレス, role:admin` を設定する。
+Argo CD の local admin は無効です。
+管理者の割り当ては `argocd-rbac-cm` ConfigMap の `data.policy.admin.csv` で行います。
+管理者にする Google アカウントごとに `g, <email>, role:admin` を設定してください。
+ConfigMap は次のコマンドで編集できます。
 
 ```sh
 kubectl -n argocd edit configmap argocd-rbac-cm
 ```
 
-管理者に指定していないアカウントには権限を付与しない。ローカル admin は無効にしているため、ConfigMap を復旧するには Kubernetes の管理権限が必要になる。
+## Argo CD での自動デプロイ
+
+Argo CD の Pod が起動してから Application を登録します。
+Application は初回に一度だけ適用します。
+
+```sh
+kubectl apply -f applications/prd/helmfile.yaml
+```
+
+`helmfile-prd` は `main` のルート Helmfile を `ENVIRONMENT=prd` で描画します。
+Argo CD と同じクラスタへ自動同期します。
+Application は self-heal を有効にし、prune を無効にしています。
+クラスタ上の手動変更は Git の状態へ戻ります。
+Helmfile から削除したリソースは自動削除されません。
+削除が必要な場合はクラスタ上で別途対応します。
