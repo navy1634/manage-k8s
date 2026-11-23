@@ -2,8 +2,12 @@ dns:
   image: registry.k8s.io/coredns/coredns:v1.14.7
   service:
     clusterIP: 10.96.0.53
-  ingress:
-    clusterIP: 10.101.237.141
-    hosts:
-      - "*.navy1634.com"
-      - "*.sandbox.navy1634.com"
+  zones:
+    - domain: navy1634.com
+      records:
+        - name: "*.navy1634.com"
+          ip: 10.101.237.141
+        - name: "*.sandbox.navy1634.com"
+          ip: 10.101.237.141
+        - name: minecraft.navy1634.com
+          ip: 192.168.0.240
