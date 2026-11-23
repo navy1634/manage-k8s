@@ -7,3 +7,4 @@ connector:
   subnetRouter:
     advertiseRoutes:
       - 10.96.0.0/12
+      - 192.168.0.240/32

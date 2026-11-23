@@ -26,7 +26,9 @@ releases:
   - name: cilium
     namespace: kube-system
     chart: cilium/cilium
-    version: 1.19.6
+    version: 1.20.5
+    apiVersions:
+      - monitoring.coreos.com/v1
     values:
       - values/cilium.yml
 
