@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tailscale-dns
+  namespace: {{ .Release.Namespace }}
   labels:
     app.kubernetes.io/name: tailscale-dns
 spec:
